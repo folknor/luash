@@ -96,7 +96,7 @@ end
 
 -- export command() function and configurable temporary "input" file
 M.command = command
-M.tmpfile = '/tmp/shluainput'
+M.tmpfile = os.tmpname()
 
 -- allow to call sh to run shell commands
 setmetatable(M, {
