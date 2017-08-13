@@ -99,9 +99,9 @@ This fork adds `__cmd` to the return table, which holds the actual command line 
 
 ## Command arguments as a table
 
-Key-value arguments can be specified as a string-keyed hash table, like below.
+Key-value arguments can be specified as a keyed hash table, like below.
 
-Please note that if your argument tables `#` operator returns anything but zero, this will not work at all.
+If your argument table `#` operator returns anything but zero, the table will be considered an indexed array, and key values will be ignored entirely.
 
 ```lua
 local sh = require("sh")
@@ -125,14 +125,20 @@ local args = {
 	removed = false, -- This does not yield anything.
 }
 
-foo(args) -- Executes the command
+foo(args) -- Executes the command with all arguments in |args|
 
 table.insert(args, "--borked")
 print(#args) -- No longer 0, but 1.
 foo(args) -- Runs `foo --borked`
-
 ```
-This functionality has been removed entirely.
+
+If either a key or a value in the argument table is a function reference, the function is invoked, with the inverse given as an argument, and no other context.
+
+A key funcref must return a string, or nil.
+
+A value funcref can return a string, boolean, number, or nil.
+
+If either of these functions return nil, the key=value pair will just silently not appear in the constructed command.
 
 ## License
 

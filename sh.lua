@@ -28,8 +28,8 @@ local function posixify(key, value)
 
 	if #key == 1 then key = " -" .. key
 	else
-		key = " --" .. key
 		key = key:gsub("_", "-")
+		key = " --" .. key
 	end
 
 	if t == _STR then
