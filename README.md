@@ -4,18 +4,15 @@ Tiny library for shell scripting with Lua (inspired by Python's sh module).
 
 This fork of luash removes the pollution of `_G`, for safer use in unknown environments.
 
-It also simplifies the argument parsing, removing the ability to pass in non-indexed tables that map key:value to key=value.
+It also improves keyed-table argument parsing, adding support for function references, replacing underscores with dashes in keys, and so forth. Please read below.
 
-If you've read the original README, please read this in its entirety as well, because more things have changed.
+Even if you read the README in [zserge/luash](https://github.com/zserge/luash), please read this in its entirety as well, because more things have changed.
 
 ## Install
 
 Clone this repo and copy sh.lua into your project.
 
 ## Simple usage
-
-Every command that can be called via os.execute can be used as a global function.
-All the arguments passed into the function become command arguments.
 
 ``` lua
 local sh = require("sh")
@@ -32,13 +29,15 @@ end
 
 ## Command input and pipelines
 
-If a `command()` is given an argument that is a table which has a `__input` key, the value will be used as input (stdin).
+If a `command()` is given an argument that is a table which has a `__input` key, the value will be used as input (stdin). Even if the table is an indexed array.
 
-Each `command()` returns a table that contains the `__input` field, so nested functions can be used to make a pipeline.
+Each `command()` returns a table that contains an `__input` field, so nested functions can be used to make a pipeline.
 
-Note that the commands are not running in parallel (because Lua can only handle
+Chained commands are not executed in parallel (because Lua can only handle
 one I/O loop at a time). So the inner-most command is executed, its output is
-read, then the outer command is execute with the output redirected, etc.
+written to a `os.tmpname()` file, read into the `__input` field, and then the outer command is executed, etc.
+
+The `os.tmpname()` file name remains the same throughout your Lua contexts life, but is deleted immediately upon a command invokations return.
 
 ``` lua
 local sh = require("sh")
