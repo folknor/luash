@@ -1,108 +1,114 @@
-local M = {}
+local type, setmetatable, tostring, select, unpack = type, setmetatable, tostring, select, unpack
+local tinsert, ioo, iop, osrem = table.insert, io.open, io.popen, os.remove
 
--- converts key and it's argument to "-k" or "-k=v" or just ""
-local function arg(k, a)
-	if not a then return k end
-	if type(a) == 'string' and #a > 0 then return k..'=\''..a..'\'' end
-	if type(a) == 'number' then return k..'='..tostring(a) end
-	if type(a) == 'boolean' and a == true then return k end
-	error('invalid argument type', type(a), a)
-end
+local tmpfile = os.tmpname()
+local _EXIT = "exit"
+local _SIGNAL = "signal"
+local _TABLE = "table"
+local _FUNC, _STR, _NUM, _BOOL = "function", "string", "number", "boolean"
+local _TRIM = "^%s*(.-)%s*$"
+local ignoreKeys = {
+	["__cmd"] = true,
+	["__input"] = true,
+	["__exitcode"] = true,
+	["__signal"] = true,
+}
 
--- converts nested tables into a flat list of arguments and concatenated input
-local function flatten(t)
-	local result = {args = {}, input = ''}
-
-	local function f(t)
-		local keys = {}
-		for k = 1, #t do
-			keys[k] = true
-			local v = t[k]
-			if type(v) == 'table' then
-				f(v)
-			else
-				table.insert(result.args, v)
-			end
-		end
-		for k, v in pairs(t) do
-			if k == '__input' then
-				result.input = result.input .. v
-			elseif not keys[k] and k:sub(1, 1) ~= '_' then
-				local key = '-'..k
-				if #k > 1 then key = '-' ..key end
-				table.insert(result.args, arg(key, v))
-			end
-		end
+local function posixify(key, value)
+	if ignoreKeys[key] then return "" end
+	if type(key) == "function" then key = key(value) end
+	if type(key) ~= "string" then return "" end
+	local t = type(value)
+	if t == _FUNC then
+		value = value(key)
+		t = type(value)
+		-- Silent return if the funcref returns nil.
+		if t == "nil" then return "" end
 	end
 
-	f(t)
-	return result
+	if #key == 1 then key = " -" .. key
+	else
+		key = " --" .. key
+		key = key:gsub("_", "-")
+	end
+
+	if t == _STR then
+		-- Return --key='value'
+		if #value > 0 then return key .. "='" .. value .. "'" end
+		return "" -- 'value' is zero-length, so return nothing
+	end
+	if t == _NUM then
+		-- Return --key=value
+		return key .. "=" .. tostring(value)
+	end
+	if t == _BOOL then
+		if value == true then return key end
+		return ""
+	end
+	error("invalid argument type", t, a)
+end
+
+local process
+process = function(n, s, ...)
+	for i = 1, n do
+		local a = (select(i, ...))
+		if type(a) == _TABLE then
+			if a.__input then
+				local f = ioo(tmpfile, "w")
+				f:write(a.__input)
+				f:close()
+				s = s .. " <" .. tmpfile
+			end
+			if #a ~= 0 then
+				s = s .. process(#a, s, unpack(a))
+			else
+				for k, v in pairs(a) do s = s .. posixify(k, v) end
+			end
+		else
+			s = s .. " " .. tostring(a)
+		end
+	end
+	return s
 end
 
 -- returns a function that executes the command with given args and returns its
 -- output, exit status etc
-local function command(cmd, ...)
-	local prearg = {...}
+local command
+command = function(cmd)
 	return function(...)
-		local args = flatten({...})
 		local s = cmd
-		for _, v in ipairs(prearg) do
-			s = s .. ' ' .. v
-		end
-		for k, v in pairs(args.args) do
-			s = s .. ' ' .. v
-		end
+		local n = select("#", ...)
+		if n ~= 0 then s = cmd .. process(n, "", ...) end
 
-		if args.input then
-			local f = io.open(M.tmpfile, 'w')
-			f:write(args.input)
-			f:close()
-			s = s .. ' <'..M.tmpfile
-		end
-		local p = io.popen(s, 'r')
-		local output = p:read('*a')
+		local p = iop(s, "r")
+		local output = p:read("*a")
 		local _, exit, status = p:close()
-		os.remove(M.tmpfile)
+		osrem(tmpfile)
 
-		local t = {
+		-- If you add new keys here, add them to ignoreKeys
+		return setmetatable({
+			__cmd = s,
 			__input = output,
-			__exitcode = exit == 'exit' and status or 127,
-			__signal = exit == 'signal' and status or 0,
-		}
-		local mt = {
-			__index = function(self, k, ...)
-				return _G[k] --, ...
-			end,
-			__tostring = function(self)
-				-- return trimmed command output as a string
-				return self.__input:match('^%s*(.-)%s*$')
-			end
-		}
-		return setmetatable(t, mt)
+			__exitcode = exit == _EXIT and status or 127,
+			__signal = exit == _SIGNAL and status or 0
+		}, {
+			__index = function(_, k) return command(k) end,
+			__tostring = function(self) return self.__input:match(_TRIM) end
+		})
 	end
 end
-
--- get global metatable
-local mt = getmetatable(_G)
-if mt == nil then
-  mt = {}
-  setmetatable(_G, mt)
-end
-
--- set hook for undefined variables
-mt.__index = function(t, cmd)
-	return command(cmd)
-end
-
--- export command() function and configurable temporary "input" file
-M.command = command
-M.tmpfile = os.tmpname()
 
 -- allow to call sh to run shell commands
-setmetatable(M, {
-	__call = function(_, cmd, ...)
-		return command(cmd, ...)
+return setmetatable({
+	command = command,
+	fork = "folknor",
+	version = 2,
+}, {
+	__call = function(_, ...)
+		local ret = {}
+		for i = 1, select("#", ...) do
+			ret[#ret+1] = command((select(i, ...)))
+		end
+		return unpack(ret)
 	end
 })
-
-return M
