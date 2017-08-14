@@ -2,7 +2,7 @@ package = "luash"
 version = "scm-0"
 
 source = {
-	url = "git://github.com/zserge/luash.git",
+	url = "git://github.com/folknor/luash.git",
 }
 
 description = {
