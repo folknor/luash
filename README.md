@@ -157,7 +157,6 @@ If either of these functions return nil, the key=value pair will just silently n
 ## Difference between returns
 There is a difference between what is returned when a command reference is invoked, depending on how you do it.
 
-
 ```lua
 local sh = require("sh")
 
@@ -211,28 +210,21 @@ local ls = sh("ls")
 local who = sh("whoami")
 local who = sh/"whoami"
 local who = sh.command("whoami")
--- __tostring on a function reference like the above will
--- immediately run it and return the output from the shell
--- command as a string
+-- |who| is a command reference, with custom __call and __tostring handlers
+-- __tostring on a command reference executes with zero args, returns trimmed stdout
+-- __call(...) returns a chainable reference
 
--- |who| is a table, with custom __call and __tostring handlers
-
--- Immediately invokes the command with no arguments
-local str = tostring(who)
-print(str) -- Prints the return of `$ whoami`
-print(who) -- Print invokes __tostring, which in turn invokes __call.
-
-local ref = who()
--- |ref| is a table you can pass on to other command() references
--- so that it will pass on its output
+local ref = who("--version") -- __call()
+local ref = sh._"whoami --version" -- immediately executes and returns reference
+-- |ref| is a chainable reference you can pass on to other command()s
+-- so that it will pass on its output through stdin
 
 -- All produce the same result, the stdout from the shell command
-local ret = tostring(who())
-local ret = sh%"whoami"
-local ret = sh._"whoami"
+local ret = tostring(ref)
+local ret = sh%"whoami --version" -- immediately executes and returns trimmed stdout
 -- |ret| is a string that contains the actual output
 
--- Can be used directly without a syntax error
+-- sh._ is easy to use for fire-and-forget
 sh._"curl --download-this --output='file'"
 sh._("curl", "--download-this", "--output='file'")
 sh._("curl", {
@@ -241,21 +233,17 @@ sh._("curl", {
 })
 sh("curl")("--download-this", "--output='file'")
 
--- Returns the command reference, not stdout
-local ref = sh("type")("ls")
-local ref = sh._"curl --download-this"
-print(type(ref)) -- table
-print(ref) -- stdout
-
 local foo = sh("foo")
 -- $ foo --format='long' --inter_active -u=3
--- Both produce the same result
-local ret = foo("--format='long'", "--inter-active", "-u=3")
-local ret = foo({
+-- All produce the same result
+local ref = sh/"foo --format='long' --inter_active -u=3"
+local ref = foo("--format='long'", "--inter-active", "-u=3")
+local ref = foo({
 	format = "long",
 	inter_active = true,
 	u = 3,
 })
+-- |ref| is a chainable reference
 ```
 ## Command input and pipelines
 
