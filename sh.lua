@@ -104,9 +104,12 @@ return setmetatable({
 	fork = "folknor",
 	version = 2,
 }, {
+	__add = function(t, v) return command(v) end,
 	__call = function(_, ...)
+		local n = select("#", ...)
+		if n == 1 then return command(...) end
 		local ret = {}
-		for i = 1, select("#", ...) do
+		for i = 1, n do
 			ret[#ret+1] = command((select(i, ...)))
 		end
 		return unpack(ret)
