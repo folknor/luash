@@ -70,19 +70,108 @@ ls("/bin"):grep(filter):wc("-l")
 ls "/bin" : grep "filter" : wc "-l"
 ```
 
-## Commands with tricky names
+Quick reference:
+```lua
+-- see example.lua as well
+local sh = require("sh")
+
+-- All produce the same result
+local who = sh("whoami")
+local who = sh/"whoami"
+local who = sh.command("whoami")
+
+-- Produce the same result, immediately invoking
+-- the command with no arguments
+local str = tostring(who)
+print(str)
+print(who) -- |who| is a table, but print() invokes __tostring on it
+
+-- All produce the same result
+local ret = tostring(who())
+local ret = sh%"whoami"
+local ret = sh._"whoami"
+
+-- Can be used directly without a syntax error
+sh._"curl --download-this" -- Execution hangs until curl returns.
+
+local foo = sh("foo")
+-- $ foo --format='long' --inter_active -u=3
+-- Both produce the same result
+local ret = foo("--format='long'", "--inter-active", "-u=3")
+local ret = foo({
+	format = "long",
+	inter_active = true,
+	u = 3,
+})
+```
+
+## Aquiring a shell-command function reference
+
+There are three ways; `sh.command("ls")`, `sh / "ls"`, and the vararg `sh(...)`. The first two are identical. Note that `"ls" / sh` (the inverse) does not work.
+
+The first two are more efficient than the vararg-aware `sh(...)` loop wrapper. All produce exactly the same result, but `sh(...)` can produce multiple results.
 
 ``` lua
 local sh = require("sh")
 
-local truecmd = sh("true") -- because "true" is a Lua keyword
-local chrome = sh("google-chrome") -- because "-" is an operator
+local truecmd = sh.command("true") -- because "true" is a Lua keyword
+local chrome = sh/"google-chrome" -- because "-" is an operator
+-- sh/"cmd" works with or without space around /
 local gittag = sh("git tag") -- gittag(...) is same as git("tag", ...)
 -- Alternatively
 local truecmd, chrome, gittag = sh("true", "google-chrome", "git tag")
 
 gittag("-l") -- list all git tags
+```
 
+The obvious reason `sh(...)` escapes my axe is because it's much less verbose, and thus more pleasant in environments where execution speed or efficiency are irrelevant.
+
+## Immediate non-standard invocation
+
+```lua
+local sh = require("sh")
+sh._"sudo rm -rf /"
+sh._("sudo", "/bin/reinstall", os.iso_filename())
+
+local ret = sh._'type ls'
+-- |ret| is a type string that contains the result of `$ type ls`
+assert(ret == "ls is /bin/ls")
+```
+
+```lua
+local sh = require("sh")
+-- syntax error
+print(sh/"type ls"())
+-- both the below print "ls is /bin/ls"
+print((sh/"type ls")())
+print(sh/"type ls") -- Works because print() invokes __tostring
+
+sh/"rm -rf /" -- Syntax error
+
+local ref = sh/"type ls"
+assert(type(ref) == "table")
+print(ref) -- Invokes __tostring
+ref() -- Invokes __call
+```
+
+Another shorthand is `%`:
+```lua
+local sh = require("sh")
+
+local stringReturn = sh%"type ls"
+assert(stringReturn == "ls is /bin/ls")
+
+local typec = sh.command("type")
+local convoluted = tostring(typec("ls"))
+assert(convoluted == stringReturn)
+
+sh%"rm -rf /" -- Syntax error
+```
+
+And yet another is sh._, for the same effect as above, but usable on its own without a variable assignment.
+```lua
+local sh = require("sh")
+sh._"rm -rf /"
 ```
 
 ## Exit status and signal values

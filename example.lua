@@ -1,4 +1,35 @@
+-- Just in case the user has luash installed as well
+package.path = "./?.lua;" .. package.path
+
+-- Remember that all arguments to print() are
+-- automatically tostring'd.
+
 local sh = require('sh')
+local whoami, pwd, wc, ls, sed, echo, tr = sh("whoami", "pwd", "wc", "ls", "sed", "echo", "tr")
+
+-- both the below print "ls is /bin/ls"
+print((sh/"type ls")())
+print(sh/"type ls") -- Works because print() invokes __tostring
+print(sh%"type ls") -- % always returns a string.
+
+local ref = sh/"type ls"
+assert(type(ref) == "table")
+print(ref) -- Invokes __tostring
+ref() -- Invokes __call
+
+local ret = sh._'pwd'
+print(ret)
+
+local stringReturn = sh%"type ls"
+assert(stringReturn == "ls is /bin/ls")
+local typec = sh.command("type")
+local convoluted = tostring(typec("ls"))
+assert(convoluted == stringReturn)
+
+
+
+local echo = sh/"echo"
+print(echo("division operator test"))
 
 -- any shell command can be called as a function
 print('User:', whoami())
@@ -24,13 +55,12 @@ print('output+tr:', res)
 -- command functions can be created dynamically. Optionally, some arguments
 -- can be prepended (like partially applied functions)
 local e = sh.command('echo')
-local greet = sh.command('echo', 'hello')
+local greet = sh.command('echo hello')
 print(e('this', 'is', 'some', 'output'))
 print(greet('world'))
 print(greet('foo'))
 
 -- sh module itself can be called as a function
 -- it's an alias for sh.command()
-print(sh('type')('ls'))
-sh 'type' 'ls' : print()
+print((sh/"type ls")())
 

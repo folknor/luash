@@ -49,18 +49,15 @@ local function posixify(key, value)
 end
 
 local process
-process = function(n, s, ...)
+process = function(n, s, input, ...)
 	for i = 1, n do
 		local a = (select(i, ...))
 		if type(a) == _TABLE then
 			if a.__input then
-				local f = ioo(tmpfile, "w")
-				f:write(a.__input)
-				f:close()
-				s = s .. " <" .. tmpfile
+				input = input .. a.__input
 			end
 			if #a ~= 0 then
-				s = s .. process(#a, s, unpack(a))
+				process(#a, s, input, unpack(a))
 			else
 				for k, v in pairs(a) do s = s .. posixify(k, v) end
 			end
@@ -68,43 +65,75 @@ process = function(n, s, ...)
 			s = s .. " " .. tostring(a)
 		end
 	end
-	return s
+	return s, input
 end
 
--- returns a function that executes the command with given args and returns its
--- output, exit status etc
+local function run(cmd)
+	local p = iop(cmd, "r")
+	local output = p:read("*a")
+	local _, exit, status = p:close()
+	osrem(tmpfile)
+	return output, exit, status
+end
+
 local command
-command = function(cmd)
-	return function(...)
-		local s = cmd
+
+local invokedMt = {
+	__index = function(_, k) return command(k) end,
+	__tostring = function(self) return self.__input:match(_TRIM) end
+}
+local function invoke(cmd)
+	local output, exit, status = run(cmd)
+	-- If you add new keys here, add them to ignoreKeys
+	return setmetatable({
+		__cmd = cmd,
+		__input = output,
+		__exitcode = exit == _EXIT and status or 127,
+		__signal = exit == _SIGNAL and status or 0
+	}, invokedMt)
+end
+local serpent = require"serpent"
+local cmdMt = {
+	__call = function(self, ...)
+		local s = self.__cmd
+		local input
 		local n = select("#", ...)
-		if n ~= 0 then s = cmd .. process(n, "", ...) end
+		if n ~= 0 then
+			local args, data = process(n, "", "", ...)
+			s = s .. args
+			input = data
+		end
+		if input and input ~= "" then
+			local f = ioo(tmpfile, "w")
+			f:write(input)
+			f:close()
+			s = s .. " <" .. tmpfile
+		end
+		return invoke(s)
+	end,
+	__tostring = function(self)
+		return run(self.__cmd):match(_TRIM)
+	end,
+}
 
-		local p = iop(s, "r")
-		local output = p:read("*a")
-		local _, exit, status = p:close()
-		osrem(tmpfile)
-
-		-- If you add new keys here, add them to ignoreKeys
-		return setmetatable({
-			__cmd = s,
-			__input = output,
-			__exitcode = exit == _EXIT and status or 127,
-			__signal = exit == _SIGNAL and status or 0
-		}, {
-			__index = function(_, k) return command(k) end,
-			__tostring = function(self) return self.__input:match(_TRIM) end
-		})
-	end
+local cache = {}
+command = function(cmd)
+	if not cache[cmd] then cache[cmd] = setmetatable({ __cmd = cmd }, cmdMt) end
+	return cache[cmd]
 end
 
 -- allow to call sh to run shell commands
 return setmetatable({
 	command = command,
+	_ = function(cmd, ...)
+		local c = command(cmd)
+		return c(...)
+	end,
 	fork = "folknor",
-	version = 2,
+	version = 3,
 }, {
 	__div = function(_, v) return command(v) end,
+	__mod = function(_, v) return run(v):match(_TRIM) end,
 	__call = function(_, ...)
 		local n = select("#", ...)
 		if n == 1 then return command(...) end
