@@ -17,7 +17,7 @@ local ignoreKeys = {
 local function posixify(key, value)
 	if ignoreKeys[key] then return "" end
 	if type(key) == "function" then key = key(value) end
-	if type(key) ~= "string" then return "" end
+	if type(key) ~= "string" or key == "" then return "" end
 	local t = type(value)
 	if t == _FUNC then
 		value = value(key)
@@ -45,7 +45,7 @@ local function posixify(key, value)
 		if value == true then return key end
 		return ""
 	end
-	error("invalid argument type", t, a)
+	error("invalid argument type", t, value)
 end
 
 local process
@@ -54,7 +54,7 @@ process = function(n, s, input, ...)
 		local a = (select(i, ...))
 		if type(a) == _TABLE then
 			if a.__input then
-				input = input .. a.__input
+				input = input .. " " .. a.__input
 			end
 			if #a ~= 0 then
 				process(#a, s, input, unpack(a))
@@ -89,7 +89,7 @@ local function invoke(cmd)
 		__cmd = cmd,
 		__input = output,
 		__exitcode = exit == _EXIT and status or 127,
-		__signal = exit == _SIGNAL and status or 0
+		__signal = exit == _SIGNAL and status or 0,
 	}, invokedMt)
 end
 
