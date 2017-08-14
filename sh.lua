@@ -92,7 +92,7 @@ local function invoke(cmd)
 		__signal = exit == _SIGNAL and status or 0
 	}, invokedMt)
 end
-local serpent = require"serpent"
+
 local cmdMt = {
 	__call = function(self, ...)
 		local s = self.__cmd
@@ -112,7 +112,7 @@ local cmdMt = {
 		return invoke(s)
 	end,
 	__tostring = function(self)
-		return run(self.__cmd):match(_TRIM)
+		return (run(self.__cmd)):match(_TRIM)
 	end,
 }
 
@@ -122,18 +122,14 @@ command = function(cmd)
 	return cache[cmd]
 end
 
--- allow to call sh to run shell commands
 return setmetatable({
 	command = command,
-	_ = function(cmd, ...)
-		local c = command(cmd)
-		return c(...)
-	end,
+	_ = function(cmd, ...) return command(cmd)(...) end,
 	fork = "folknor",
 	version = 3,
 }, {
 	__div = function(_, v) return command(v) end,
-	__mod = function(_, v) return run(v):match(_TRIM) end,
+	__mod = function(_, v) return (run(v)):match(_TRIM) end,
 	__call = function(_, ...)
 		local n = select("#", ...)
 		if n == 1 then return command(...) end
