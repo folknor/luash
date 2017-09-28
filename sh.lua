@@ -1,5 +1,5 @@
 local type, setmetatable, tostring, select, unpack = type, setmetatable, tostring, select, unpack
-local tinsert, ioo, iop, osrem = table.insert, io.open, io.popen, os.remove
+local ioo, iop, osrem = io.open, io.popen, os.remove
 
 local tmpfile = os.tmpname()
 local _EXIT = "exit"
@@ -26,22 +26,31 @@ local function posixify(key, value)
 		if t == "nil" then return "" end
 	end
 
-	if #key == 1 then key = " -" .. key
-	else
-		key = key:gsub("_", "-")
-		key = " --" .. key
+	if key:sub(1, 1) ~= "_" then
+		if #key == 1 then key = " -" .. key
+		else
+			key = key:gsub("_", "-")
+			key = " --" .. key
+		end
 	end
 
-	if t == _STR then
+	if t == _TABLE then
+		local build = {}
+		local fmt = "%s='%s'"
+		for _, v in next, value do
+			if type(v) == _NUM or type(v) == _STR then
+				build[#build+1] = fmt:format(key, tostring(v))
+			end
+		end
+		return table.concat(build, " ")
+	elseif t == _STR then
 		-- Return --key='value'
 		if #value > 0 then return key .. "='" .. value .. "'" end
 		return "" -- 'value' is zero-length, so return nothing
-	end
-	if t == _NUM then
+	elseif t == _NUM then
 		-- Return --key=value
 		return key .. "=" .. tostring(value)
-	end
-	if t == _BOOL then
+	elseif t == _BOOL then
 		if value == true then return key end
 		return ""
 	end
@@ -126,7 +135,7 @@ return setmetatable({
 	command = command,
 	_ = function(cmd, ...) return command(cmd)(...) end,
 	fork = "folknor",
-	version = 3,
+	version = 4,
 }, {
 	__div = function(_, v) return command(v) end,
 	__mod = function(_, v) return (run(v)):match(_TRIM) end,

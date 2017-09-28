@@ -202,14 +202,14 @@ local sh = require("sh")
 -- Execution always waits for shell commands to return.
 
 -- Note that all the functionality can be done with this:
-local ls = sh("ls")
--- There is no need to use the / % or ._ methods, they are
+local ls, grep, wc = sh("ls", "grep", "wc")
+-- There is no need to use the /, %, sh._, or sh.command methods, they are
 -- only there for fun and .. underpants profit?
 
 -- All produce the same result
-local who = sh("whoami")
-local who = sh/"whoami"
-local who = sh.command("whoami")
+local who = sh("whoami")         -- can return vararg command references
+local who = sh/"whoami"          -- shorthand, looks cool
+local who = sh.command("whoami") -- geeky, more efficient
 -- |who| is a command reference, with custom __call and __tostring handlers
 -- __tostring on a command reference executes with zero args, returns trimmed stdout
 -- __call(...) returns a chainable reference
