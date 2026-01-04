@@ -1,4 +1,4 @@
-local type, setmetatable, tostring, select, unpack = type, setmetatable, tostring, select, unpack
+local type, setmetatable, tostring, select, unpack = type, setmetatable, tostring, select, unpack or table.unpack
 local ioo, iop, osrem = io.open, io.popen, os.remove
 
 local tmpfile = os.tmpname()
